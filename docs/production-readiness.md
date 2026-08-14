@@ -15,6 +15,8 @@ The prototype must not be treated as a production student-information system. Mi
 - Obtain written service descriptions, data-processing terms, incident commitments and exit/export terms from every operator.
 - Separate development, test and production environments and credentials.
 - Apply schema migrations through a reviewed release process with rollback plans.
+- Validate programme, NQF, SAQA and unit-standard references against authoritative records before production use; the software must not imply accreditation.
+- Test CSV imports with validation, approval, duplicate handling and a recoverable rollback process before live bulk enrolment.
 
 ## 3. Backups and recovery
 
@@ -23,6 +25,7 @@ The prototype must not be treated as a production student-information system. Mi
 - Encrypt backup transfers and restrict restore permissions.
 - Perform and record restoration tests; a backup is not accepted merely because a file exists.
 - Approve retention and secure-deletion periods for production records and backups.
+- Include uploaded POE and workplace evidence in restoration testing, not only database metadata.
 
 ## 4. Monitoring and incident response
 
@@ -30,6 +33,7 @@ The prototype must not be treated as a production student-information system. Mi
 - Route alerts to named people with an escalation roster.
 - Complete logging review so logs contain operational evidence without unnecessary personal information.
 - Approve and rehearse the security-compromise assessment and regulatory notification procedure.
+- Add malware scanning, content validation and quarantine controls before accepting live learner document uploads.
 
 ## 5. POPIA and contracting
 
@@ -38,7 +42,15 @@ The prototype must not be treated as a production student-information system. Mi
 - Publish the final privacy notice and data-subject request procedure.
 - Sign operator agreements and document cross-border processing, if any.
 - Complete a security risk assessment and obtain legal review for contracts and privacy materials.
+- Define minimum-information, retention, access and deletion rules for applications, assessment feedback, moderation records and uploaded evidence.
 
-## 6. Pilot exit decision
+## 6. Academic and reporting controls
+
+- Confirm who may create assessments, record outcomes, moderate decisions and mark an enrolment complete.
+- Reconcile programme and learner totals against the college's approved source records after imports and migrations.
+- Label EduBonke outputs as software-generated until each intended external report has been independently mapped, tested and approved.
+- Do not describe prototype CSV or JSON exports as regulator submissions.
+
+## 7. Pilot exit decision
 
 The production decision requires measured evidence from a controlled synthetic-data pilot: workflow time, error rate, adoption, support volume, security findings, implementation effort and a signed customer decision. Production scope, price, hosting cost and funding should be based on that evidence and written supplier quotations.

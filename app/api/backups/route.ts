@@ -1,6 +1,6 @@
 import { count, desc, eq } from "drizzle-orm";
 import { getRuntimeEnv } from "../../../db";
-import { announcements, attendance, auditEvents, backupSnapshots, learners, memberships, privacyRequests } from "../../../db/schema";
+import { announcements, applications, assessmentResults, assessments, attendance, auditEvents, backupSnapshots, enrolments, evidenceDocuments, learners, memberships, privacyRequests, programmes, scheduleEntries } from "../../../db/schema";
 import { ApiError, requireMember, requireWriteRequest, routeError, writeAudit } from "../../../lib/server";
 
 export async function POST(request: Request) {
@@ -10,8 +10,15 @@ export async function POST(request: Request) {
     const env = getRuntimeEnv();
     if (!env.BUCKET) throw new ApiError(503, "Backup storage is not available.");
     const institutionId = membership.institutionId;
-    const [learnerRows, attendanceRows, announcementRows, privacyRows, memberRows, auditRows] = await Promise.all([
+    const [learnerRows, programmeRows, applicationRows, enrolmentRows, scheduleRows, assessmentRows, resultRows, evidenceRows, attendanceRows, announcementRows, privacyRows, memberRows, auditRows] = await Promise.all([
       db.select().from(learners).where(eq(learners.institutionId, institutionId)),
+      db.select().from(programmes).where(eq(programmes.institutionId, institutionId)),
+      db.select().from(applications).where(eq(applications.institutionId, institutionId)),
+      db.select().from(enrolments).where(eq(enrolments.institutionId, institutionId)),
+      db.select().from(scheduleEntries).where(eq(scheduleEntries.institutionId, institutionId)),
+      db.select().from(assessments).where(eq(assessments.institutionId, institutionId)),
+      db.select().from(assessmentResults).where(eq(assessmentResults.institutionId, institutionId)),
+      db.select().from(evidenceDocuments).where(eq(evidenceDocuments.institutionId, institutionId)),
       db.select().from(attendance).where(eq(attendance.institutionId, institutionId)),
       db.select().from(announcements).where(eq(announcements.institutionId, institutionId)),
       db.select().from(privacyRequests).where(eq(privacyRequests.institutionId, institutionId)),
@@ -21,8 +28,8 @@ export async function POST(request: Request) {
     const createdAt = new Date().toISOString();
     const id = crypto.randomUUID();
     const objectKey = `prototype-backups/${institutionId}/${createdAt.replaceAll(":", "-")}-${id}.json`;
-    const data = { exportVersion: 1, prototype: true, institution: { id: institutionId, name: membership.institutionName }, createdAt, learners: learnerRows, attendance: attendanceRows, announcements: announcementRows, privacyRequests: privacyRows, members: memberRows, auditEvents: auditRows };
-    const recordCount = learnerRows.length + attendanceRows.length + announcementRows.length + privacyRows.length + memberRows.length + auditRows.length;
+    const data = { exportVersion: 2, prototype: true, institution: { id: institutionId, name: membership.institutionName }, createdAt, learners: learnerRows, programmes: programmeRows, applications: applicationRows, enrolments: enrolmentRows, scheduleEntries: scheduleRows, assessments: assessmentRows, assessmentResults: resultRows, evidenceDocuments: evidenceRows, attendance: attendanceRows, announcements: announcementRows, privacyRequests: privacyRows, members: memberRows, auditEvents: auditRows };
+    const recordCount = learnerRows.length + programmeRows.length + applicationRows.length + enrolmentRows.length + scheduleRows.length + assessmentRows.length + resultRows.length + evidenceRows.length + attendanceRows.length + announcementRows.length + privacyRows.length + memberRows.length + auditRows.length;
     await env.BUCKET.put(objectKey, JSON.stringify(data), { httpMetadata: { contentType: "application/json" }, customMetadata: { institutionId, createdBy: user.email } });
     await db.insert(backupSnapshots).values({ id, institutionId, objectKey, recordCount, createdBy: user.email, createdAt });
     await writeAudit({ institutionId, actorEmail: user.email, action: "backup.created", entityType: "backup", entityId: id, metadata: { recordCount } });

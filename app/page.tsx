@@ -2,12 +2,15 @@ import Link from "next/link";
 import { getChatGPTUser } from "./chatgpt-auth";
 
 const modules = [
-  ["Learner records", "Register learners, manage programme placement and keep one current profile."],
-  ["Attendance", "Capture daily attendance with a clear record of who made each change."],
-  ["Timetables", "Give staff and learners one mobile-friendly view of classes and venues."],
+  ["Admissions", "Capture applications, track review decisions and prepare accepted applicants for enrolment."],
+  ["Programmes & NQF", "Maintain college-verified programme codes, NQF levels, credits and SAQA references."],
+  ["Learners & enrolments", "Register learners individually or by CSV and link them to a study period."],
+  ["Attendance & timetables", "Share upcoming classes and capture attendance with an accountable record."],
+  ["Assessments", "Plan formative, summative and practical work and record competence outcomes."],
+  ["POE & workplace evidence", "Store synthetic evidence files, track review status and retain accountable metadata."],
   ["Announcements", "Publish college-wide or class-specific updates from a controlled workspace."],
   ["POPIA requests", "Record access, correction and deletion requests with dates and ownership."],
-  ["Audit history", "Trace important administrative actions without exposing sensitive information."],
+  ["Reports & recovery", "Generate operational exports, trace changes and create protected backup snapshots."],
 ] as const;
 
 export default async function Home() {
@@ -35,8 +38,8 @@ export default async function Home() {
           <div className="eyebrow"><span /> South African college administration</div>
           <h1 id="hero-title">One secure workspace for every learner journey.</h1>
           <p>
-            EduBonke brings learner records, attendance, communication and privacy
-            workflows into a shared portal built for smaller South African colleges.
+            EduBonke connects admission, enrolment, delivery, assessment, POE evidence,
+            reporting and privacy workflows for South African private colleges.
           </p>
           <div className="hero-actions">
             <Link className="button" href="/portal">Enter the prototype</Link>
@@ -59,8 +62,8 @@ export default async function Home() {
           </div>
           <div className="metric-grid">
             <article><small>Active learners</small><strong>248</strong><span>12 programmes</span></article>
-            <article><small>Attendance today</small><strong>91%</strong><span className="positive">↑ 3% this week</span></article>
-            <article><small>Open requests</small><strong>3</strong><span>1 due this week</span></article>
+            <article><small>Admissions queue</small><strong>14</strong><span className="positive">6 ready for review</span></article>
+            <article><small>Evidence review</small><strong>9</strong><span>POE and workplace</span></article>
           </div>
           <div className="preview-panel">
             <div className="panel-title"><b>Today’s classes</b><span>View timetable</span></div>
@@ -85,7 +88,7 @@ export default async function Home() {
         <div className="section-heading">
           <span className="section-index">01</span>
           <div><p className="eyebrow-text">Focused first release</p><h2 id="platform-title">The daily tools a college actually needs</h2></div>
-          <p>Six connected modules replace scattered spreadsheets and message threads without trying to imitate a large university system.</p>
+          <p>Nine connected operational areas replace scattered spreadsheets and message threads without pretending to be a regulator or a large university system.</p>
         </div>
         <div className="module-grid">
           {modules.map(([title, description], index) => (
@@ -106,7 +109,8 @@ export default async function Home() {
           <li><b>Authentication</b><span>Every protected action is linked to a signed-in user.</span></li>
           <li><b>Minimum access</b><span>Administrators, lecturers and viewers receive different permissions.</span></li>
           <li><b>Data-subject requests</b><span>Access, correction and deletion requests can be logged and tracked.</span></li>
-          <li><b>Recovery readiness</b><span>Exports, restore procedures and health checks are included in the operating plan.</span></li>
+          <li><b>Protected evidence</b><span>POE files are kept separately from searchable records with institution-level access checks.</span></li>
+          <li><b>Recovery readiness</b><span>Exports, backup snapshots, restore procedures and health checks support continuity planning.</span></li>
         </ul>
       </section>
 
@@ -126,7 +130,7 @@ export default async function Home() {
       <footer>
         <div className="brand"><span className="brand-mark">EB</span><span>EduBonke</span></div>
         <p>Every college. Every learner. One platform.</p>
-        <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v0.1</p>
+        <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v0.2</p>
       </footer>
     </main>
   );

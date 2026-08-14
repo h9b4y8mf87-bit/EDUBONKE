@@ -6,12 +6,17 @@ EduBonke is a controlled, full-stack prototype for testing shared college admini
 
 - Sign-in-gated portal using the hosting platform's authenticated identity
 - Separate institution workspaces with administrator, lecturer and viewer roles
-- Shared learner register, attendance capture and announcements
+- Admissions queue, programme catalogue, NQF/SAQA reference fields and enrolments
+- Shared learner register with controlled CSV import, attendance and timetables
+- Formative, summative, practical, POE and workplace assessment workflows
+- Competence outcomes, moderation status and software-generated progress reports
+- Protected POE/workplace evidence uploads with review status and metadata
+- Announcements and staff role administration
 - POPIA request register for access, correction, deletion and objection requests
 - Institution-scoped queries and server-side permission checks
 - Audit history for important write actions
 - Managed relational storage and separate object-storage backup snapshots
-- Portable JSON export for migration and recovery testing
+- Portable JSON and progress CSV exports for migration and operational testing
 - Database health endpoint and protective response headers
 - Responsive public site and portal for desktop, tablet and mobile
 
@@ -61,3 +66,6 @@ Database migrations are stored under `drizzle/`. Logical platform bindings are d
 - `/api/health` — non-sensitive database reachability check
 - `/api/export` — administrator-only portable export
 - `/api/backups` — administrator-only recovery snapshots
+- `/api/reports?type=progress` — software-generated progress CSV
+- `/api/import` — controlled learner CSV template and import
+- `/api/evidence` — protected evidence upload, review and retrieval

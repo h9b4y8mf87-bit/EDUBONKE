@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getChatGPTUser, type ChatGPTUser } from "../app/chatgpt-auth";
 import { getDb } from "../db";
-import { auditEvents, institutions, learners, memberships, users } from "../db/schema";
+import { assessments, auditEvents, institutions, learners, memberships, programmes, users } from "../db/schema";
 
 export type Role = "admin" | "lecturer" | "viewer";
 
@@ -83,8 +83,40 @@ export function cleanText(value: unknown, field: string, max = 120): string {
   return textValue;
 }
 
+export function cleanOptionalText(value: unknown, max = 500): string {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "";
+}
+
+export function requireDate(value: unknown, field: string): string {
+  const date = typeof value === "string" ? value : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+    throw new ApiError(400, `Choose a valid ${field.toLowerCase()}.`);
+  }
+  return date;
+}
+
+export function requireInteger(value: unknown, field: string, minimum = 0, maximum = 1000): number {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(number) || number < minimum || number > maximum) {
+    throw new ApiError(400, `${field} must be between ${minimum} and ${maximum}.`);
+  }
+  return number;
+}
+
 export async function isLearnerInInstitution(learnerId: string, institutionId: string) {
   const row = await getDb().select({ id: learners.id }).from(learners)
     .where(and(eq(learners.id, learnerId), eq(learners.institutionId, institutionId))).limit(1);
+  return Boolean(row[0]);
+}
+
+export async function isProgrammeInInstitution(programmeId: string, institutionId: string) {
+  const row = await getDb().select({ id: programmes.id }).from(programmes)
+    .where(and(eq(programmes.id, programmeId), eq(programmes.institutionId, institutionId))).limit(1);
+  return Boolean(row[0]);
+}
+
+export async function isAssessmentInInstitution(assessmentId: string, institutionId: string) {
+  const row = await getDb().select({ id: assessments.id }).from(assessments)
+    .where(and(eq(assessments.id, assessmentId), eq(assessments.institutionId, institutionId))).limit(1);
   return Boolean(row[0]);
 }
