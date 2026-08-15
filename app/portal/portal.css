@@ -53,6 +53,8 @@
 .form-card textarea { min-height: 76px; padding-top: 10px; resize: vertical; }
 .form-card input[type="file"] { padding: 9px; }
 .form-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.form-pair > * { min-width: 0; }
+.form-pair input, .form-pair select { min-width: 0; }
 .primary-action { min-height: 44px; border: 0; border-radius: 10px; padding: 0 16px; background: #087f75; color: white; font-size: 11px; font-weight: 750; cursor: pointer; }
 .primary-action:hover { background: #07665f; }
 .primary-action:disabled { opacity: .55; cursor: progress; }

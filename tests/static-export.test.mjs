@@ -43,3 +43,9 @@ test("uses the EduBonke brand identity and colour palette", async () => {
   assert.match(favicon, /#087f75/);
   assert.match(favicon, /#e8a33a/);
 });
+
+test("paired finance dates shrink within narrow cards", async () => {
+  const css = await readFile(new URL("../app/portal/portal.css", import.meta.url), "utf8");
+  assert.match(css, /\.form-pair > \* \{ min-width: 0; \}/);
+  assert.match(css, /\.form-pair input, \.form-pair select \{ min-width: 0; \}/);
+});
