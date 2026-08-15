@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "../../lib/supabase";
+import BrandLogo from "../brand";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -61,7 +62,7 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-brand-panel">
-        <Link className="brand" href="/"><span className="brand-mark">EB</span><span>EduBonke</span></Link>
+        <Link className="brand" href="/" aria-label="EduBonke home"><BrandLogo inverse /></Link>
         <div><p className="eyebrow-text light">South African college operations</p><h1>One account for your college workspace.</h1><p>Access admissions, teaching, assessment, POE, finance, communication and compliance workflows from any authorised device.</p></div>
         <small>R0 prototype architecture · GitHub Pages + Supabase Free</small>
       </section>

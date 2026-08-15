@@ -1,8 +1,9 @@
 import Link from "next/link";
+import BrandLogo from "../brand";
 
 export default function PrivacyPage() {
   return <main className="privacy-notice-page">
-    <header><Link className="brand" href="/"><span className="brand-mark">EB</span><span>EduBonke</span></Link><span>Prototype privacy notice</span></header>
+    <header><Link className="brand" href="/" aria-label="EduBonke home"><BrandLogo /></Link><span>Prototype privacy notice</span></header>
     <article>
       <p className="eyebrow-text">Version 1.0 · 15 August 2026</p>
       <h1>How the EduBonke prototype handles information</h1>

@@ -34,3 +34,12 @@ test("includes the installable web-app assets", async () => {
     assert.match(html, /\/EDUBONKE\/favicon\.svg/);
   }
 });
+
+test("uses the EduBonke brand identity and colour palette", async () => {
+  const html = await readFile(new URL("../out/index.html", import.meta.url), "utf8");
+  const favicon = await readFile(new URL("../out/favicon.svg", import.meta.url), "utf8");
+  assert.match(html, /brand-word-bonke/);
+  assert.match(favicon, /#132a32/);
+  assert.match(favicon, /#087f75/);
+  assert.match(favicon, /#e8a33a/);
+});

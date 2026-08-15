@@ -1,10 +1,9 @@
 .portal-shell { min-height: 100vh; display: grid; grid-template-columns: 264px minmax(0, 1fr); background: #f3f5f2; color: #173138; }
 .portal-sidebar { position: sticky; top: 0; height: 100vh; padding: 23px 16px 17px; display: flex; flex-direction: column; overflow-y: auto; background: #132a32; color: #fff; z-index: 20; }
-.portal-brand { display: flex; align-items: center; gap: 11px; padding: 3px 8px 23px; border-bottom: 1px solid rgba(255,255,255,.1); }
-.portal-brand > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px 12px 12px 4px; background: #e8a33a; color: #132a32; font-size: 12px; font-weight: 850; }
-.portal-brand b, .portal-brand small { display: block; }
-.portal-brand b { font-size: 16px; letter-spacing: -.02em; }
-.portal-brand small { margin-top: 2px; color: #9bb0b3; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
+.portal-brand { width: 100%; padding: 3px 8px 23px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.portal-brand .brand-symbol { width: 48px; height: 36px; }
+.portal-brand .brand-word { font-size: 17px; }
+.portal-brand .brand-subtitle { margin-top: 5px; font-size: 8px; }
 .workspace-card { margin: 18px 4px; padding: 14px; display: grid; gap: 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 13px; background: rgba(255,255,255,.045); }
 .workspace-card small { color: #86a1a4; font-size: 9px; letter-spacing: .12em; }
 .workspace-card b { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -128,6 +127,7 @@
 .configuration-page ol { padding-left: 22px; }
 .configuration-page code { padding: 3px 6px; border-radius: 5px; background: #eef2ef; }
 .configuration-page .button { margin-top: 18px; width: fit-content; }
+.configuration-brand-mark { width: 74px; height: 56px; margin-bottom: 14px; }
 .onboarding-page { display: block; }
 .onboarding-page header { width: min(1040px, 100%); margin: 0 auto 28px; display: flex; justify-content: space-between; align-items: center; }
 .onboarding-page header button { border: 0; background: transparent; color: #65777a; cursor: pointer; }

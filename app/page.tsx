@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BrandLogo, { BrandMark } from "./brand";
 
 const modules = [
   ["College administration", "Configure campuses, staff memberships, roles, academic periods and institution settings."],
@@ -20,8 +21,7 @@ export default function Home() {
     <main className="landing-shell">
       <header className="landing-nav">
         <Link className="brand" href="/" aria-label="EduBonke home">
-          <span className="brand-mark" aria-hidden="true">EB</span>
-          <span>EduBonke</span>
+          <BrandLogo />
         </Link>
         <nav aria-label="Primary navigation">
           <a href="#platform">Platform</a>
@@ -50,7 +50,7 @@ export default function Home() {
 
         <div className="dashboard-preview" aria-label="Example EduBonke dashboard">
           <div className="preview-topbar">
-            <span className="preview-logo">EB</span>
+            <BrandMark className="preview-logo" title="EduBonke" />
             <div><b>Mhlabeni Skills College — Demo</b><small>Johannesburg campus</small></div>
             <span className="status-chip">Protected</span>
           </div>
@@ -126,7 +126,7 @@ export default function Home() {
       </section>
 
       <footer>
-        <div className="brand"><span className="brand-mark">EB</span><span>EduBonke</span></div>
+        <BrandLogo className="brand" />
         <p>Every college. Every learner. One platform.</p>
         <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v1.1</p>
       </footer>
