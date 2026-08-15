@@ -1,9 +1,10 @@
-# EduBonke v1.0 Feature Matrix
+# EduBonke v1.1 Feature Matrix
 
 This matrix describes what the R0 prototype actually does. “Working” means the feature has a user interface, database model and relevant row-level access controls after the supplied Supabase migration is installed.
 
 | Area | Status | Implemented scope | Deliberate boundary |
 | --- | --- | --- | --- |
+| Standalone demonstration | Working | No-account browser demo with invented college, users and linked operational records across all modules | Changes are temporary; authentication, RLS and multi-device sharing are not exercised |
 | Accounts | Working | Email/password sign-up, confirmation, sign-in, reset and session sharing across devices | MFA enforcement is a production gate |
 | Multi-college access | Working | Separate workspaces, college switcher, single-use email-bound invites and eight roles | Bulk identity provisioning is not included |
 | Academic setup | Working | Campuses, academic periods, programmes, modules and classes | Accreditation references are college-supplied, not independently validated |

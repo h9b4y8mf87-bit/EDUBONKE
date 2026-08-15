@@ -28,8 +28,8 @@ export default function Home() {
           <a href="#safeguards">Safeguards</a>
           <a href="#pilot">Pilot</a>
         </nav>
-        <Link className="button button-small" href="/login">
-          Sign in to EduBonke
+        <Link className="button button-small" href="/demo">
+          Open interactive demo
         </Link>
       </header>
 
@@ -42,16 +42,16 @@ export default function Home() {
             reporting and privacy workflows for South African private colleges.
           </p>
           <div className="hero-actions">
-            <Link className="button" href="/login">Enter the prototype</Link>
-            <a className="button button-secondary" href="#pilot">See the pilot scope</a>
+            <Link className="button" href="/demo">Explore with dummy data</Link>
+            <Link className="button button-secondary" href="/login">Open connected portal</Link>
           </div>
-          <p className="prototype-note">R0 prototype · GitHub Pages + Supabase Free · Synthetic data only</p>
+          <p className="prototype-note">The demo needs no account or backend · R0 prototype · Synthetic data only</p>
         </div>
 
         <div className="dashboard-preview" aria-label="Example EduBonke dashboard">
           <div className="preview-topbar">
             <span className="preview-logo">EB</span>
-            <div><b>Mhlabeni College</b><small>Johannesburg campus</small></div>
+            <div><b>Mhlabeni Skills College — Demo</b><small>Johannesburg campus</small></div>
             <span className="status-chip">Protected</span>
           </div>
           <div className="preview-heading">
@@ -128,7 +128,7 @@ export default function Home() {
       <footer>
         <div className="brand"><span className="brand-mark">EB</span><span>EduBonke</span></div>
         <p>Every college. Every learner. One platform.</p>
-        <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v1.0</p>
+        <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v1.1</p>
       </footer>
     </main>
   );

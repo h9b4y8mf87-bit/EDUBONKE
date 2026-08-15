@@ -27,6 +27,9 @@
 .account-chip b { font-size: 11px; }
 .account-chip small { margin-top: 3px; color: #66797c; font-size: 9px; }
 .mobile-menu { display: none; width: 42px; height: 42px; border: 1px solid #d3dcd8; border-radius: 10px; background: white; color: #173138; }
+.demo-mode-banner { margin: 17px clamp(20px, 3.5vw, 54px) 0; padding: 13px 15px; display: flex; align-items: center; gap: 13px; border: 1px solid #e9c47f; border-radius: 12px; background: #fff8e9; color: #6d552c; font-size: 10px; line-height: 1.5; }
+.demo-mode-banner b { color: #7c4d08; font-size: 11px; white-space: nowrap; }
+.demo-mode-banner a { margin-left: auto; color: #087f75; font-weight: 750; white-space: nowrap; }
 .portal-content { padding: clamp(22px, 3.5vw, 50px); display: grid; gap: 24px; }
 .portal-content.two-column { grid-template-columns: minmax(300px, .78fr) minmax(420px, 1.22fr); align-items: start; }
 .feature-grid { display: grid; gap: 20px; align-items: start; }
@@ -150,6 +153,8 @@
   .portal-topbar > div:first-of-type small, .account-chip div { display: none; }
   .portal-topbar h1 { font-size: 18px; }
   .portal-content { padding: 17px 13px 32px; gap: 15px; }
+  .demo-mode-banner { margin: 12px 13px 0; align-items: flex-start; flex-direction: column; gap: 5px; }
+  .demo-mode-banner a { margin: 3px 0 0; }
   .portal-card { padding: 19px 15px; border-radius: 15px; }
   .feature-grid.two, .feature-grid.three, .report-grid, .metric-row { grid-template-columns: 1fr; }
   .form-pair { grid-template-columns: 1fr; }

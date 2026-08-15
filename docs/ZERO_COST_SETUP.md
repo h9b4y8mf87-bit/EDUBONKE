@@ -2,7 +2,17 @@
 
 This guide creates the functional prototype without ChatGPT hosting or a paid hosting plan. GitHub Pages hosts the application and Supabase Free provides accounts, PostgreSQL and private file storage.
 
-## 1. Create the Supabase project
+## Fastest demonstration: GitHub Pages only
+
+The interactive dummy-data demo does not need Supabase. After GitHub Pages deploys, open:
+
+```text
+https://h9b4y8mf87-bit.github.io/EDUBONKE/demo/
+```
+
+The invented records run entirely in the current browser tab. Demonstration changes are not shared across devices and disappear after a refresh or **Reset demo**. Continue with the Supabase steps below only when you want to test real authentication, tenant isolation and shared synthetic records.
+
+## 1. Create the optional Supabase project
 
 1. Open `https://supabase.com/dashboard` and create a free account.
 2. Select **New project**.

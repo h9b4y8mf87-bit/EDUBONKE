@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured } from "../../lib/supabase";
 import { downloadCsv, formatDate, human, money, navigation, type InstitutionRole, type Membership, type WorkspaceData } from "../../lib/platform";
+import { createDemoWorkspace, demoMemberships, demoUser } from "../../lib/demo-data";
 
 type Row = Record<string, unknown>;
 type Notice = { type: "success" | "error"; text: string } | null;
@@ -23,14 +24,14 @@ const academicManagers = new Set<InstitutionRole>(["college_admin", "academic_ma
 const financeWriters = new Set<InstitutionRole>(["college_admin", "finance_officer"]);
 const privacyManagers = new Set<InstitutionRole>(["college_admin", "academic_manager"]);
 
-export default function PortalClient() {
-  const [user, setUser] = useState<User | null>(null);
-  const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [membership, setMembership] = useState<Membership | null>(null);
+export default function PortalClient({ demoMode = false }: { demoMode?: boolean }) {
+  const [user, setUser] = useState<User | null>(demoMode ? demoUser as unknown as User : null);
+  const [memberships, setMemberships] = useState<Membership[]>(demoMode ? demoMemberships : []);
+  const [membership, setMembership] = useState<Membership | null>(demoMode ? demoMemberships[0] : null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [data, setData] = useState<WorkspaceData>({});
+  const [data, setData] = useState<WorkspaceData>(() => demoMode ? createDemoWorkspace() : {});
   const [view, setView] = useState<(typeof navigation)[number][0]>("overview");
-  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [loading, setLoading] = useState(!demoMode && isSupabaseConfigured);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [mobileNav, setMobileNav] = useState(false);
@@ -72,7 +73,7 @@ export default function PortalClient() {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (demoMode || !isSupabaseConfigured) return;
     const supabase = getSupabase();
     supabase.auth.getUser().then(async ({ data: authData }) => {
       if (!authData.user) { location.href = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/login/`; return; }
@@ -83,78 +84,92 @@ export default function PortalClient() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
     return () => listener.subscription.unsubscribe();
-  }, [loadMemberships]);
+  }, [demoMode, loadMemberships]);
 
   useEffect(() => {
-    if (!membership) return;
+    if (demoMode || !membership) return;
     const timer = window.setTimeout(() => {
       void loadWorkspace(membership, isSuperAdmin).catch((error) => setNotice({ type: "error", text: message(error) }));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [membership, isSuperAdmin, loadWorkspace]);
+  }, [demoMode, membership, isSuperAdmin, loadWorkspace]);
 
   const run = useCallback(async (action: () => Promise<void>, success?: string) => {
     if (!membership) return;
     setBusy(true); setNotice(null);
     try {
       await action();
-      await loadWorkspace(membership, isSuperAdmin);
+      if (!demoMode) await loadWorkspace(membership, isSuperAdmin);
       if (success) setNotice({ type: "success", text: success });
     } catch (error) { setNotice({ type: "error", text: message(error) }); }
     finally { setBusy(false); }
-  }, [membership, isSuperAdmin, loadWorkspace]);
+  }, [demoMode, membership, isSuperAdmin, loadWorkspace]);
 
-  const actions = useMemo(() => ({
-    insert: (table: string, values: Row, success: string) => run(async () => {
-      const { error } = await getSupabase().from(table).insert({ ...values, institution_id: membership?.institution_id });
-      if (error) throw error;
-    }, success),
-    upsert: (table: string, values: Row, conflict: string, success: string) => run(async () => {
-      const { error } = await getSupabase().from(table).upsert({ ...values, institution_id: membership?.institution_id }, { onConflict: conflict });
-      if (error) throw error;
-    }, success),
-    update: (table: string, id: unknown, values: Row, success: string) => run(async () => {
-      const { error } = await getSupabase().from(table).update(values).eq("id", id).eq("institution_id", membership?.institution_id);
-      if (error) throw error;
-    }, success),
-    remove: (table: string, id: unknown, success: string) => run(async () => {
-      const { error } = await getSupabase().from(table).delete().eq("id", id).eq("institution_id", membership?.institution_id);
-      if (error) throw error;
-    }, success),
-    custom: run,
-    refresh: () => membership ? loadWorkspace(membership, isSuperAdmin) : Promise.resolve(),
-  }), [membership, isSuperAdmin, loadWorkspace, run]);
+  const actions = useMemo(() => {
+    if (demoMode) {
+      const tableKey = (table: string) => table === "institution_memberships" ? "members" : table;
+      const audit = (table: string, action: string, entityId: unknown): Row => ({ id: crypto.randomUUID(), institution_id: membership?.institution_id, action, entity_type: table, entity_id: entityId, actor_id: demoUser.id, actor_email: demoUser.email, created_at: new Date().toISOString() });
+      const insertLocal = (table: string, records: Row[]) => setData((current) => {
+        const key = tableKey(table); const stamped = records.map((row) => ({ id: row.id ?? crypto.randomUUID(), institution_id: membership?.institution_id, created_at: row.created_at ?? new Date().toISOString(), ...row }));
+        return { ...current, [key]: [...stamped, ...(current[key] ?? [])], audit_logs: [...stamped.map((row) => audit(table, "insert", row.id)), ...(current.audit_logs ?? [])] };
+      });
+      const upsertLocal = (table: string, records: Row[], conflict: string) => setData((current) => {
+        const key = tableKey(table); const fields = conflict.split(",").map((field) => field.trim()).filter((field) => field !== "institution_id"); const next = [...(current[key] ?? [])];
+        for (const values of records) { const found = next.findIndex((row) => fields.every((field) => row[field] === values[field])); if (found >= 0) next[found] = { ...next[found], ...values, updated_at: new Date().toISOString() }; else next.unshift({ id: crypto.randomUUID(), institution_id: membership?.institution_id, created_at: new Date().toISOString(), ...values }); }
+        return { ...current, [key]: next, audit_logs: [audit(table, "upsert", "demo-batch"), ...(current.audit_logs ?? [])] };
+      });
+      return {
+        insert: (table: string, values: Row, success: string) => run(async () => insertLocal(table, [values]), success),
+        upsert: (table: string, values: Row, conflict: string, success: string) => run(async () => upsertLocal(table, [values], conflict), success),
+        batchUpsert: (table: string, values: Row[], conflict: string, success: string) => run(async () => upsertLocal(table, values, conflict), success),
+        update: (table: string, id: unknown, values: Row, success: string) => run(async () => setData((current) => { const key = tableKey(table); const previous = (current[key] ?? []).find((row) => row.id === id); const history = table === "students" && values.status && previous?.status !== values.status ? [{ id: crypto.randomUUID(), institution_id: membership?.institution_id, student_id: id, previous_status: previous?.status, new_status: values.status, created_at: new Date().toISOString() }, ...(current.student_status_history ?? [])] : current.student_status_history; return { ...current, [key]: (current[key] ?? []).map((row) => row.id === id ? { ...row, ...values, updated_at: new Date().toISOString() } : row), student_status_history: history ?? [], audit_logs: [audit(table, "update", id), ...(current.audit_logs ?? [])] }; }), success),
+        remove: (table: string, id: unknown, success: string) => run(async () => setData((current) => { const key = tableKey(table); return { ...current, [key]: (current[key] ?? []).filter((row) => row.id !== id), audit_logs: [audit(table, "delete", id), ...(current.audit_logs ?? [])] }; }), success),
+        custom: run,
+        refresh: () => Promise.resolve(),
+      };
+    }
+    return {
+      insert: (table: string, values: Row, success: string) => run(async () => { const { error } = await getSupabase().from(table).insert({ ...values, institution_id: membership?.institution_id }); if (error) throw error; }, success),
+      upsert: (table: string, values: Row, conflict: string, success: string) => run(async () => { const { error } = await getSupabase().from(table).upsert({ ...values, institution_id: membership?.institution_id }, { onConflict: conflict }); if (error) throw error; }, success),
+      batchUpsert: (table: string, values: Row[], conflict: string, success: string) => run(async () => { const { error } = await getSupabase().from(table).upsert(values.map((row) => ({ ...row, institution_id: membership?.institution_id })), { onConflict: conflict }); if (error) throw error; }, success),
+      update: (table: string, id: unknown, values: Row, success: string) => run(async () => { const { error } = await getSupabase().from(table).update(values).eq("id", id).eq("institution_id", membership?.institution_id); if (error) throw error; }, success),
+      remove: (table: string, id: unknown, success: string) => run(async () => { const { error } = await getSupabase().from(table).delete().eq("id", id).eq("institution_id", membership?.institution_id); if (error) throw error; }, success),
+      custom: run,
+      refresh: () => membership ? loadWorkspace(membership, isSuperAdmin) : Promise.resolve(),
+    };
+  }, [demoMode, membership, isSuperAdmin, loadWorkspace, run]);
 
   async function signOut() {
-    if (isSupabaseConfigured) await getSupabase().auth.signOut();
+    if (!demoMode && isSupabaseConfigured) await getSupabase().auth.signOut();
     location.href = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/`;
   }
 
-  if (!isSupabaseConfigured) return <ConfigurationRequired />;
+  if (!demoMode && !isSupabaseConfigured) return <ConfigurationRequired />;
   if (loading && !user) return <LoadingScreen text="Checking your account…" />;
   if (!user) return null;
   if (!membership) return <Onboarding user={user} busy={busy} notice={notice} setBusy={setBusy} setNotice={setNotice} onComplete={() => loadMemberships(user)} onSignOut={signOut} />;
 
   const role = membership.role;
-  const panelProps = { data, role, busy, actions, institutionId: membership.institution_id, user };
+  const panelProps = { data, role, busy, actions, institutionId: membership.institution_id, user, demoMode };
 
   return (
     <main className="portal-shell">
       <aside className={mobileNav ? "portal-sidebar open" : "portal-sidebar"}>
-        <div className="portal-brand"><span>EB</span><div><b>EduBonke</b><small>College Management</small></div></div>
+        <div className="portal-brand"><span>EB</span><div><b>EduBonke</b><small>{demoMode ? "Interactive Demo" : "College Management"}</small></div></div>
         <div className="workspace-card">
           <small>ACTIVE COLLEGE</small><b>{membership.institutions.name}</b><span>{human(role)}</span>
           {memberships.length > 1 && <select value={membership.institution_id} onChange={(event) => setMembership(memberships.find((item) => item.institution_id === event.target.value) ?? membership)}>{memberships.map((item) => <option key={item.id} value={item.institution_id}>{item.institutions.name}</option>)}</select>}
         </div>
         <nav>{navigation.map(([key, label]) => <button key={key} className={view === key ? "active" : ""} onClick={() => { setView(key); setMobileNav(false); }}><span>{navIcon(key)}</span>{label}</button>)}</nav>
-        <div className="sidebar-footer"><Link href="/privacy">Privacy notice</Link><button onClick={signOut}>Sign out</button></div>
+        <div className="sidebar-footer"><Link href="/privacy">Privacy notice</Link>{demoMode ? <button onClick={() => { setData(createDemoWorkspace()); setNotice({ type: "success", text: "Demo data reset to its original state." }); setView("overview"); }}>Reset demo</button> : <button onClick={signOut}>Sign out</button>}</div>
       </aside>
       <section className="portal-main">
         <header className="portal-topbar">
           <button className="mobile-menu" onClick={() => setMobileNav((value) => !value)} aria-label="Toggle navigation">☰</button>
-          <div><small>{human(view)}</small><h1>{view === "overview" ? `Welcome, ${user.user_metadata?.full_name ?? user.email?.split("@")[0]}` : navigation.find(([key]) => key === view)?.[1]}</h1></div>
+          <div><small>{demoMode ? `Demo · ${human(view)}` : human(view)}</small><h1>{view === "overview" ? `Welcome, ${user.user_metadata?.full_name ?? user.email?.split("@")[0]}` : navigation.find(([key]) => key === view)?.[1]}</h1></div>
           <div className="account-chip"><span>{initials(user.user_metadata?.full_name ?? user.email ?? "User")}</span><div><b>{user.user_metadata?.full_name ?? "EduBonke user"}</b><small>{human(role)}</small></div></div>
         </header>
+        {demoMode && <div className="demo-mode-banner"><b>Interactive demonstration</b><span>Every person, college, amount and record is invented. Changes last only until this page is refreshed or reset.</span><Link href="/">Exit demo</Link></div>}
         {notice && <div className={`portal-notice ${notice.type}`} role="status"><span>{notice.type === "success" ? "✓" : "!"}</span>{notice.text}<button onClick={() => setNotice(null)}>×</button></div>}
         {loading ? <LoadingScreen text="Loading college records…" compact /> : <Panel view={view} props={panelProps} isSuperAdmin={isSuperAdmin} />}
       </section>
@@ -168,9 +183,11 @@ type PanelProps = {
   busy: boolean;
   institutionId: string;
   user: User;
+  demoMode: boolean;
   actions: {
     insert(table: string, values: Row, success: string): Promise<void>;
     upsert(table: string, values: Row, conflict: string, success: string): Promise<void>;
+    batchUpsert(table: string, values: Row[], conflict: string, success: string): Promise<void>;
     update(table: string, id: unknown, values: Row, success: string): Promise<void>;
     remove(table: string, id: unknown, success: string): Promise<void>;
     custom(action: () => Promise<void>, success?: string): Promise<void>;
@@ -195,10 +212,10 @@ function Panel({ view, props, isSuperAdmin }: { view: string; props: PanelProps;
   return <OverviewPanel {...props} />;
 }
 
-function OverviewPanel({ data, role }: PanelProps) {
+function OverviewPanel({ data, role, demoMode }: PanelProps) {
   const students = getRows(data, "students"); const applications = getRows(data, "applications"); const results = getRows(data, "assessment_results"); const invoices = getRows(data, "invoices");
   const outstanding = invoices.reduce((sum, row) => sum + Number(row.balance ?? row.total_amount ?? 0), 0);
-  return <div className="portal-content"><section className="metric-row"><Metric label="Active students" value={students.filter((row) => row.status === "active").length} note={`${students.length} total records`} /><Metric label="Admissions queue" value={applications.filter((row) => !["accepted", "declined"].includes(String(row.status))).length} note={`${applications.length} applications`} /><Metric label="Competent outcomes" value={results.filter((row) => row.outcome === "competent").length} note={`${results.length} captured outcomes`} /><Metric label="Outstanding fees" value={money(outstanding)} note="Prototype finance ledger" /></section><div className="dashboard-grid"><Card title="Upcoming classes" eyebrow="TIMETABLE"><RecordList rows={getRows(data, "timetable_entries").slice(0, 6)} empty="No classes have been scheduled." render={(row) => <><b>{text(row.title)}</b><small>{formatDate(row.session_date)} · {text(row.start_time)}–{text(row.end_time)} · {text(row.venue)}</small></>} /></Card><Card title="Latest announcements" eyebrow="COMMUNICATIONS"><RecordList rows={getRows(data, "announcements").slice(0, 6)} empty="No announcements have been published." render={(row) => <><b>{text(row.title)}</b><small>{text(row.audience)} · {formatDate(row.created_at)}</small><p>{text(row.body)}</p></>} /></Card></div><section className="scope-banner"><div><b>Current access: {human(role)}</b><p>Your visible records and available actions are controlled by your college membership and Supabase row-level security.</p></div><span>R0 test environment</span></section></div>;
+  return <div className="portal-content"><section className="metric-row"><Metric label="Active students" value={students.filter((row) => row.status === "active").length} note={`${students.length} total records`} /><Metric label="Admissions queue" value={applications.filter((row) => !["accepted", "declined"].includes(String(row.status))).length} note={`${applications.length} applications`} /><Metric label="Competent outcomes" value={results.filter((row) => row.outcome === "competent").length} note={`${results.length} captured outcomes`} /><Metric label="Outstanding fees" value={money(outstanding)} note="Prototype finance ledger" /></section><div className="dashboard-grid"><Card title="Upcoming classes" eyebrow="TIMETABLE"><RecordList rows={getRows(data, "timetable_entries").slice(0, 6)} empty="No classes have been scheduled." render={(row) => <><b>{text(row.title)}</b><small>{formatDate(row.session_date)} · {text(row.start_time)}–{text(row.end_time)} · {text(row.venue)}</small></>} /></Card><Card title="Latest announcements" eyebrow="COMMUNICATIONS"><RecordList rows={getRows(data, "announcements").slice(0, 6)} empty="No announcements have been published." render={(row) => <><b>{text(row.title)}</b><small>{text(row.audience)} · {formatDate(row.created_at)}</small><p>{text(row.body)}</p></>} /></Card></div><section className="scope-banner"><div><b>Current access: {human(role)}</b><p>{demoMode ? "Demo actions run only in this browser tab and do not test database security or shared-device access." : "Your visible records and available actions are controlled by your college membership and Supabase row-level security."}</p></div><span>{demoMode ? "Synthetic demo" : "R0 test environment"}</span></section></div>;
 }
 
 function AdmissionsPanel(props: PanelProps) {
@@ -210,17 +227,20 @@ function StudentsPanel(props: PanelProps) {
   const students = getRows(props.data, "students"); const history = getRows(props.data, "student_status_history"); const programmes = getRows(props.data, "programmes"); const periods = getRows(props.data, "academic_periods"); const classes = getRows(props.data, "classes"); const members = getRows(props.data, "members"); const placements = getRows(props.data, "workplace_placements"); const canWrite = academicManagers.has(props.role);
   const supervisors = members.filter((row) => row.role === "workplace_supervisor" && row.status === "active");
   async function importStudents(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const file = new FormData(form).get("csv");
-    await props.actions.custom(async () => {
-      if (!(file instanceof File) || !file.size) throw new Error("Choose a CSV file.");
+    event.preventDefault(); const form = event.currentTarget;
+    try {
+      const file = new FormData(form).get("csv");
+      if (!(file instanceof File) || !file.size) throw new Error("Choose a non-empty CSV file.");
       const parsed = parseCsv(await file.text());
-      if (parsed.length > 200) throw new Error("A single prototype import is limited to 200 students.");
+      if (parsed.length > 200) throw new Error("The prototype accepts at most 200 student rows per import.");
       const required = ["student_number", "first_name", "last_name", "email"];
-      if (!parsed.length || required.some((field) => !(field in parsed[0]))) throw new Error(`CSV columns must include: ${required.join(", ")}.`);
+      if (!parsed.length || required.some((field) => !(field in parsed[0]))) throw new Error(`CSV headers must include: ${required.join(", ")}.`);
       const records = parsed.map((row) => ({ institution_id: props.institutionId, student_number: row.student_number?.trim().toUpperCase(), first_name: row.first_name?.trim(), last_name: row.last_name?.trim(), email: row.email?.trim().toLowerCase(), phone: row.phone?.trim() || null, status: row.status?.trim() || "active" }));
-      if (records.some((row) => !row.student_number || !row.first_name || !row.last_name || !row.email)) throw new Error("Every CSV row requires a student number, first name, last name and email.");
-      const { error } = await getSupabase().from("students").upsert(records, { onConflict: "institution_id,student_number" }); if (error) throw error; form.reset();
-    }, "Student CSV imported.");
+      if (records.some((row) => !row.student_number || !row.first_name || !row.last_name || !row.email)) throw new Error("Every row needs a student number, first name, last name and email address.");
+      await props.actions.batchUpsert("students", records, "institution_id,student_number", `${records.length} student records imported.`); form.reset();
+    } catch (error) {
+      window.alert(message(error));
+    }
   }
   function downloadTemplate() { const csv = "student_number,first_name,last_name,email,phone,status\nTEST-003,Lerato,Mthembu,lerato.test@example.invalid,0000000000,active\n"; const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "edubonke-student-import-template.csv"; link.click(); URL.revokeObjectURL(link.href); }
   return <div className="portal-content">{canWrite && <div className="feature-grid two"><FormCard title="Register a student" intro="Use a college-issued student number. Avoid unnecessary special personal information."><form onSubmit={(event) => void formInsert(event, props.actions, "students", { status: "active" }, "Student registered.")}><Pair><Field label="Student number" name="student_number" /><Field label="National ID / passport" name="identity_reference" optional /></Pair><Pair><Field label="First name" name="first_name" /><Field label="Last name" name="last_name" /></Pair><Pair><Field label="Email" name="email" type="email" /><Field label="Mobile number" name="phone" /></Pair><Pair><Field label="Date of birth" name="date_of_birth" type="date" optional /><SelectField label="Status" name="status" rawOptions={[["active", "Active"], ["inactive", "Inactive"], ["graduated", "Graduated"], ["withdrawn", "Withdrawn"]]} /></Pair><Submit busy={props.busy}>Register student</Submit></form></FormCard><FormCard title="Create an enrolment" intro="Link a registered student to a programme, period and optional class."><form onSubmit={(event) => void formInsert(event, props.actions, "enrolments", { status: "active" }, "Enrolment created.")}><SelectField label="Student" name="student_id" options={students} optionLabel={(row) => `${text(row.student_number)} · ${text(row.first_name)} ${text(row.last_name)}`} /><SelectField label="Programme" name="programme_id" options={programmes} optionLabel={(row) => `${text(row.code)} · ${text(row.title)}`} /><Pair><SelectField label="Academic period" name="academic_period_id" options={periods} optionLabel={(row) => text(row.name)} /><SelectField label="Class (optional)" name="class_id" options={classes} optionLabel={(row) => text(row.name)} optional /></Pair><Pair><Field label="Start date" name="start_date" type="date" /><Field label="Expected end date" name="expected_end_date" type="date" /></Pair><Submit busy={props.busy}>Create enrolment</Submit></form></FormCard><FormCard title="Controlled CSV import" intro="Import up to 200 synthetic student records with duplicate student-number updates."><form onSubmit={(event) => void importStudents(event)}><label>CSV file<input name="csv" type="file" accept=".csv,text/csv" required /></label><Submit busy={props.busy}>Import students</Submit></form><button className="secondary-action" onClick={downloadTemplate}>Download CSV template</button></FormCard><FormCard title="Workplace placement" intro="Link a student to an approved workplace supervisor account."><form onSubmit={(event) => void formInsert(event, props.actions, "workplace_placements", { status: "active" }, "Workplace placement created.")}><SelectField label="Student" name="student_id" options={students} optionLabel={(row) => `${text(row.student_number)} · ${text(row.first_name)} ${text(row.last_name)}`} /><SelectField label="Supervisor" name="supervisor_profile_id" options={supervisors} optionValue={(row) => text(row.profile_id)} optionLabel={(row) => { const profile = (row.profiles ?? {}) as Row; return `${text(profile.full_name)} · ${text(profile.email)}`; }} /><Field label="Employer" name="employer_name" /><Pair><Field label="Start date" name="start_date" type="date" /><Field label="End date" name="end_date" type="date" optional /></Pair><Submit busy={props.busy}>Create placement</Submit></form></FormCard></div>}<div className="dashboard-grid"><Card title="Student register" eyebrow="STUDENT INFORMATION SYSTEM"><div className="data-table"><div className="table-head columns-5"><span>Student</span><span>Contact</span><span>Status</span><span>Registered</span><span>Action</span></div>{students.map((row) => <div className="table-row columns-5" key={text(row.id)}><span><b>{text(row.first_name)} {text(row.last_name)}</b><small>{text(row.student_number)}</small></span><span><small>{text(row.email)}</small>{text(row.phone)}</span><span><Status value={row.status} /></span><span>{formatDate(row.created_at)}</span><span>{canWrite && <select value={text(row.status)} onChange={(event) => void props.actions.update("students", row.id, { status: event.target.value }, "Student status updated.")}><option value="active">Active</option><option value="inactive">Inactive</option><option value="graduated">Graduated</option><option value="withdrawn">Withdrawn</option></select>}</span></div>)}</div>{!students.length && <Empty text="No students have been registered." />}</Card><Card title="Workplace placements" eyebrow="EMPLOYER EVIDENCE"><RecordList rows={placements} empty="No workplace placements have been created." render={(row) => <><div className="record-between"><b>{lookupStudent(students, row.student_id)}</b><Status value={row.status} /></div><small>{text(row.employer_name)} · {formatDate(row.start_date)} to {formatDate(row.end_date)}</small></>} /></Card><Card title="Student status history" eyebrow="ACCOUNTABILITY"><RecordList rows={history.slice(0, 50)} empty="No student status changes have been recorded." render={(row) => <><b>{lookupStudent(students, row.student_id)}</b><small>{human(row.previous_status)} → {human(row.new_status)} · {formatDate(row.created_at)}</small></>} /></Card></div></div>;
@@ -253,6 +273,10 @@ function EvidencePanel(props: PanelProps) {
     if (!(file instanceof File) || !file.size) throw new Error("Choose a file to upload.");
     if (file.size > 10 * 1024 * 1024) throw new Error("Prototype uploads are limited to 10 MB.");
     const studentId = String(formData.get("student_id")); const objectPath = `${props.institutionId}/${studentId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+    if (props.demoMode) {
+      await props.actions.insert("evidence_documents", { student_id: studentId, assessment_id: nullable(formData.get("assessment_id")), evidence_type: String(formData.get("evidence_type")), title: String(formData.get("title")), file_name: file.name, storage_path: `demo/${objectPath}`, content_type: file.type || "application/octet-stream", size_bytes: file.size, status: "received" }, "Demo evidence metadata added. The selected file was not uploaded anywhere.");
+      form.reset(); return;
+    }
     await props.actions.custom(async () => {
       const supabase = getSupabase(); const uploadResult = await supabase.storage.from("college-documents").upload(objectPath, file, { upsert: false });
       if (uploadResult.error) throw uploadResult.error;
@@ -261,9 +285,14 @@ function EvidencePanel(props: PanelProps) {
       form.reset();
     }, "Evidence uploaded securely.");
   }
-  async function download(row: Row) { const { data, error } = await getSupabase().storage.from("college-documents").createSignedUrl(text(row.storage_path), 60); if (error) throw error; window.open(data.signedUrl, "_blank", "noopener,noreferrer"); }
+  async function download(row: Row) { if (props.demoMode) { downloadBlob("EDUBONKE-DEMO-EVIDENCE.txt", `EduBonke demonstration evidence placeholder\n\nTitle: ${text(row.title)}\nStudent: ${lookupStudent(students, row.student_id)}\nFilename: ${text(row.file_name)}\n\nNo real learner file is included in Demo Mode.`, "text/plain"); return; } const { data, error } = await getSupabase().storage.from("college-documents").createSignedUrl(text(row.storage_path), 60); if (error) throw error; window.open(data.signedUrl, "_blank", "noopener,noreferrer"); }
   async function moderate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const values = valuesFrom(form); const resultId = text(values.assessment_result_id); const decision = text(values.decision);
+    if (props.demoMode) {
+      await props.actions.insert("moderation_records", { ...values, moderator_id: props.user.id, moderated_at: new Date().toISOString() }, "Demo moderation record created.");
+      await props.actions.update("assessment_results", resultId, { moderation_status: decision === "returned" ? "pending" : decision }, "Moderation status updated.");
+      form.reset(); return;
+    }
     await props.actions.custom(async () => {
       const supabase = getSupabase();
       const { error: insertError } = await supabase.from("moderation_records").insert({ ...values, institution_id: props.institutionId, moderator_id: props.user.id, moderated_at: new Date().toISOString() });
@@ -312,6 +341,35 @@ function AdministrationPanel(props: PanelProps & { isSuperAdmin: boolean }) {
   const members = getRows(props.data, "members"); const students = getRows(props.data, "students"); const invites = getRows(props.data, "institution_invites"); const audits = getRows(props.data, "audit_logs"); const subscriptions = getRows(props.data, "subscriptions"); const studentMembers = members.filter((row) => row.role === "student" && row.status === "active"); const canAdmin = props.role === "college_admin";
   async function createInvite(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const values = valuesFrom(form); const code = crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase(); await props.actions.insert("institution_invites", { ...values, code, expires_at: new Date(Date.now() + 7 * 86400000).toISOString(), created_by: props.user.id }, "Invite code created."); form.reset(); }
   async function linkStudentAccount(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const values = valuesFrom(form); await props.actions.update("students", values.student_id, { auth_user_id: values.profile_id }, "Student account linked to the student record."); form.reset(); }
+  if (props.demoMode) return (
+    <div className="portal-content">
+      <div className="feature-grid three">
+        <FormCard title="Create a sample invite" intro="Demonstrate the administrator workflow without sending an email or creating an account.">
+          <form onSubmit={(event) => void createInvite(event)}>
+            <Field label="Approved email" name="email" type="email" placeholder="lecturer@example.invalid" />
+            <SelectField label="Role" name="role" rawOptions={[["college_admin", "College administrator"], ["academic_manager", "Academic manager"], ["lecturer", "Lecturer / facilitator"], ["assessor", "Assessor"], ["moderator", "Moderator"], ["finance_officer", "Finance officer"], ["student", "Student"], ["workplace_supervisor", "Workplace supervisor"]]} />
+            <Submit busy={props.busy}>Create sample invite</Submit>
+          </form>
+          <div className="invite-list">{invites.filter((row) => !row.used_at).map((row) => <div key={text(row.id)}><b>{text(row.code)}</b><span>{text(row.email)} · {human(row.role)}</span></div>)}</div>
+        </FormCard>
+        <FormCard title="Link a sample account" intro="Connect an invented student membership to its matching student record.">
+          <form onSubmit={(event) => void linkStudentAccount(event)}>
+            <SelectField label="Student record" name="student_id" options={students} optionLabel={(row) => `${text(row.student_number)} · ${text(row.first_name)} ${text(row.last_name)}`} />
+            <SelectField label="Student account" name="profile_id" options={studentMembers} optionValue={(row) => text(row.profile_id)} optionLabel={(row) => { const profile = (row.profiles ?? {}) as Row; return text(profile.full_name) || text(profile.email); }} />
+            <Submit busy={props.busy}>Link sample account</Submit>
+          </form>
+        </FormCard>
+        <FormCard title="Demo workspace" intro="The complete demonstration dataset is already loaded in this browser.">
+          <p className="scope-note">Use “Reset demo” in the sidebar to discard your changes and restore the original records. No account, email, file or database operation is performed.</p>
+          <div className="subscription-box"><small>CURRENT PACKAGE</small><b>{human(subscriptions[0]?.plan_code ?? "prototype_free")}</b><span>R0 browser demo · No payment processing</span></div>
+        </FormCard>
+      </div>
+      <div className="dashboard-grid">
+        <Card title="Members and roles" eyebrow="SYNTHETIC ACCESS REGISTER"><RecordList rows={members} empty="No members were returned." render={(row) => { const profile = (row.profiles ?? {}) as Row; return <><div className="record-between"><b>{text(profile.full_name) || text(profile.email)}</b><Status value={row.status} /></div><small>{text(profile.email)} · {human(row.role)}</small></>; }} /></Card>
+        <Card title="Audit history" eyebrow="BROWSER-ONLY ACCOUNTABILITY"><RecordList rows={audits.slice(0, 50)} empty="No audit events were returned." render={(row) => <><b>{human(row.action)} · {human(row.entity_type)}</b><small>{formatDate(row.created_at)} · {text(row.actor_email) || text(row.actor_id)}</small></>} /></Card>
+      </div>
+    </div>
+  );
   return <div className="portal-content">{canAdmin && <div className="feature-grid three"><FormCard title="Invite a team member" intro="The invited person creates an account and enters this single-use code."><form onSubmit={(event) => void createInvite(event)}><Field label="Approved email" name="email" type="email" /><SelectField label="Role" name="role" rawOptions={[["college_admin", "College administrator"], ["academic_manager", "Academic manager"], ["lecturer", "Lecturer / facilitator"], ["assessor", "Assessor"], ["moderator", "Moderator"], ["finance_officer", "Finance officer"], ["student", "Student"], ["workplace_supervisor", "Workplace supervisor"]]} /><Submit busy={props.busy}>Create seven-day invite</Submit></form><div className="invite-list">{invites.filter((row) => !row.used_at).map((row) => <div key={text(row.id)}><b>{text(row.code)}</b><span>{text(row.email)} · {human(row.role)}</span></div>)}</div></FormCard><FormCard title="Link a student account" intro="After the learner joins with a student invite, link that account to the correct student record."><form onSubmit={(event) => void linkStudentAccount(event)}><SelectField label="Student record" name="student_id" options={students} optionLabel={(row) => `${text(row.student_number)} · ${text(row.first_name)} ${text(row.last_name)}`} /><SelectField label="Student account" name="profile_id" options={studentMembers} optionValue={(row) => text(row.profile_id)} optionLabel={(row) => { const profile = (row.profiles ?? {}) as Row; return text(profile.full_name) || text(profile.email); }} /><Submit busy={props.busy}>Link account</Submit></form></FormCard><FormCard title="Synthetic demonstration data" intro="Populate this workspace with clearly labelled test records so every module can be evaluated."><p className="scope-note">Run this only in an empty test workspace. It does not create real learners or accredited records.</p><button className="primary-action" disabled={props.busy} onClick={() => void props.actions.custom(async () => { const { error } = await getSupabase().rpc("seed_demo_workspace", { p_institution_id: props.institutionId }); if (error) throw error; }, "Synthetic demonstration data created.")}>Load synthetic demo data</button><div className="subscription-box"><small>CURRENT PACKAGE</small><b>{human(subscriptions[0]?.plan_code ?? "prototype_free")}</b><span>R0 test tier · No payment processing</span></div></FormCard></div>}<div className="dashboard-grid"><Card title="Members and roles" eyebrow="ACCESS CONTROL"><RecordList rows={members} empty="No members were returned." render={(row) => { const profile = (row.profiles ?? {}) as Row; return <><div className="record-between"><b>{text(profile.full_name) || text(profile.email)}</b><Status value={row.status} /></div><small>{text(profile.email)}</small>{canAdmin && <select value={text(row.role)} onChange={(event) => void props.actions.update("institution_memberships", row.id, { role: event.target.value }, "Member role updated.")}><option value="college_admin">College administrator</option><option value="academic_manager">Academic manager</option><option value="lecturer">Lecturer</option><option value="assessor">Assessor</option><option value="moderator">Moderator</option><option value="finance_officer">Finance officer</option><option value="student">Student</option><option value="workplace_supervisor">Workplace supervisor</option></select>}</>; }} /></Card><Card title="Audit history" eyebrow="ACCOUNTABILITY"><RecordList rows={audits.slice(0, 50)} empty="No audit events were returned." render={(row) => <><b>{human(row.action)} · {human(row.entity_type)}</b><small>{formatDate(row.created_at)} · {text(row.actor_email) || text(row.actor_id)}</small></>} /></Card></div>{props.isSuperAdmin && <Card title="Platform tenant register" eyebrow="SUPER ADMIN"><RecordList rows={getRows(props.data, "platform_institutions")} empty="No institutions available." render={(row) => <><b>{text(row.name)}</b><small>{text(row.registration_number)} · {human(row.status)}</small></>} /></Card>}</div>;
 }
 

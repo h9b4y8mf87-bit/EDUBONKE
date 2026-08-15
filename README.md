@@ -1,6 +1,16 @@
 # EduBonke College Management Platform
 
-EduBonke is a multi-tenant administration and academic operations platform designed for South African private-college workflows. Version 1.0 is a working, synthetic-data prototype that can run at R0 using GitHub Pages and the Supabase Free plan.
+EduBonke is a multi-tenant administration and academic operations platform designed for South African private-college workflows. Version 1.1 is a working, synthetic-data prototype that can run at R0 using GitHub Pages, with Supabase Free available for connected multi-device testing.
+
+## Interactive demo
+
+Open the deployed site and select **Explore with dummy data**, or visit:
+
+```text
+https://h9b4y8mf87-bit.github.io/EDUBONKE/demo/
+```
+
+The demo needs no account, Supabase project or environment variables. It loads an invented college, people and operational records in the browser. Forms, status changes, CSV imports, reports and placeholder evidence downloads can be demonstrated, but changes disappear after a refresh or **Reset demo**. It does not prove authentication, database security or cross-device sharing; use the connected portal for those tests.
 
 ## Functional areas
 
@@ -19,6 +29,7 @@ EduBonke is a multi-tenant administration and academic operations platform desig
 - Support tickets with comments, POPIA requests, consent records and data incidents
 - Platform subscriptions, tenant register and audit history
 - Responsive installable PWA shell for desktop, tablet and mobile
+- Browser-only interactive demo with a complete, clearly labelled synthetic workspace
 
 ## R0 architecture
 
@@ -29,7 +40,7 @@ EduBonke is a multi-tenant administration and academic operations platform desig
 - **Private documents:** Supabase Storage with signed downloads
 - **Automation:** GitHub Actions build, test and Pages deployment
 
-No ChatGPT hosting, D1, R2, Vercel or paid service is required for prototype testing.
+No ChatGPT hosting, D1, R2, Vercel or paid service is required for prototype testing. The browser-only demo requires only GitHub Pages; the connected portal additionally requires Supabase Free.
 
 ## Set up the working prototype
 
@@ -43,7 +54,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Use Node.js 20.9 or newer.
+Open `http://localhost:3000/demo/` for the standalone demo, or `http://localhost:3000` for the landing page. Use Node.js 20.9 or newer.
 
 Validation:
 

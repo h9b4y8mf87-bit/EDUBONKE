@@ -1,6 +1,6 @@
-const cacheName = "edubonke-shell-v1";
+const cacheName = "edubonke-shell-v2";
 const base = self.registration.scope.replace(/\/$/, "");
-const shell = [`${base}/`, `${base}/login/`, `${base}/portal/`, `${base}/privacy/`, `${base}/manifest.webmanifest`, `${base}/favicon.svg`];
+const shell = [`${base}/`, `${base}/demo/`, `${base}/login/`, `${base}/portal/`, `${base}/privacy/`, `${base}/manifest.webmanifest`, `${base}/favicon.svg`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(shell)).then(() => self.skipWaiting()));
