@@ -1,21 +1,21 @@
 import Link from "next/link";
-import { getChatGPTUser } from "./chatgpt-auth";
 
 const modules = [
+  ["College administration", "Configure campuses, staff memberships, roles, academic periods and institution settings."],
   ["Admissions", "Capture applications, track review decisions and prepare accepted applicants for enrolment."],
-  ["Programmes & NQF", "Maintain college-verified programme codes, NQF levels, credits and SAQA references."],
-  ["Learners & enrolments", "Register learners individually or by CSV and link them to a study period."],
-  ["Attendance & timetables", "Share upcoming classes and capture attendance with an accountable record."],
+  ["Programmes & modules", "Maintain college-verified programme, NQF, SAQA, credit and curriculum references."],
+  ["Students & enrolments", "Manage student profiles, status history, documents, classes and study periods."],
+  ["Attendance & timetables", "Share upcoming classes and capture accountable session-level attendance."],
   ["Assessments", "Plan formative, summative and practical work and record competence outcomes."],
-  ["POE & workplace evidence", "Store synthetic evidence files, track review status and retain accountable metadata."],
-  ["Announcements", "Publish college-wide or class-specific updates from a controlled workspace."],
-  ["POPIA requests", "Record access, correction and deletion requests with dates and ownership."],
-  ["Reports & recovery", "Generate operational exports, trace changes and create protected backup snapshots."],
+  ["POE & moderation", "Store protected evidence, track moderation decisions and retain accountable metadata."],
+  ["Finance", "Track rand-denominated invoices, payments, balances and funding administration."],
+  ["Communication", "Publish college notices and role-specific in-app notifications."],
+  ["Reports", "Export operational registers and generate printable academic progress records."],
+  ["Support", "Log and manage technical, data, training, billing and privacy support requests."],
+  ["POPIA controls", "Record requests, consent decisions, data incidents and auditable changes."],
 ] as const;
 
-export default async function Home() {
-  const user = await getChatGPTUser();
-
+export default function Home() {
   return (
     <main className="landing-shell">
       <header className="landing-nav">
@@ -28,8 +28,8 @@ export default async function Home() {
           <a href="#safeguards">Safeguards</a>
           <a href="#pilot">Pilot</a>
         </nav>
-        <Link className="button button-small" href="/portal">
-          {user ? "Open portal" : "Sign in to prototype"}
+        <Link className="button button-small" href="/login">
+          Sign in to EduBonke
         </Link>
       </header>
 
@@ -42,12 +42,10 @@ export default async function Home() {
             reporting and privacy workflows for South African private colleges.
           </p>
           <div className="hero-actions">
-            <Link className="button" href="/portal">Enter the prototype</Link>
+            <Link className="button" href="/login">Enter the prototype</Link>
             <a className="button button-secondary" href="#pilot">See the pilot scope</a>
           </div>
-          <p className="prototype-note">
-            Prototype environment · Synthetic data only · Not for live student records
-          </p>
+          <p className="prototype-note">R0 prototype · GitHub Pages + Supabase Free · Synthetic data only</p>
         </div>
 
         <div className="dashboard-preview" aria-label="Example EduBonke dashboard">
@@ -88,7 +86,7 @@ export default async function Home() {
         <div className="section-heading">
           <span className="section-index">01</span>
           <div><p className="eyebrow-text">Focused first release</p><h2 id="platform-title">The daily tools a college actually needs</h2></div>
-          <p>Nine connected operational areas replace scattered spreadsheets and message threads without pretending to be a regulator or a large university system.</p>
+          <p>Twelve connected operational areas replace scattered spreadsheets and message threads without pretending to be a regulator, accounting suite or large university system.</p>
         </div>
         <div className="module-grid">
           {modules.map(([title, description], index) => (
@@ -103,14 +101,14 @@ export default async function Home() {
         <div>
           <p className="eyebrow-text light">Built around responsible access</p>
           <h2 id="security-title">Privacy is part of the workflow, not a footer.</h2>
-          <p>Every institution receives a separate workspace. Membership, role checks and important changes are handled on the server.</p>
+          <p>Every institution receives a separate workspace. PostgreSQL row-level policies enforce tenant and role boundaries before protected data is returned.</p>
         </div>
         <ul>
-          <li><b>Authentication</b><span>Every protected action is linked to a signed-in user.</span></li>
-          <li><b>Minimum access</b><span>Administrators, lecturers and viewers receive different permissions.</span></li>
+          <li><b>Authentication</b><span>Supabase Auth links protected actions to a verified account.</span></li>
+          <li><b>Minimum access</b><span>Eight college roles receive different record and action permissions.</span></li>
           <li><b>Data-subject requests</b><span>Access, correction and deletion requests can be logged and tracked.</span></li>
           <li><b>Protected evidence</b><span>POE files are kept separately from searchable records with institution-level access checks.</span></li>
-          <li><b>Recovery readiness</b><span>Exports, backup snapshots, restore procedures and health checks support continuity planning.</span></li>
+          <li><b>Accountability</b><span>Database triggers retain an institution-scoped audit history of important changes.</span></li>
         </ul>
       </section>
 
@@ -121,7 +119,7 @@ export default async function Home() {
           <h2 id="pilot-title">Designed to learn before live data is introduced.</h2>
         </div>
         <div className="pilot-steps">
-          <article><b>1</b><h3>Create a test workspace</h3><p>An authorised college representative creates the institution and receives an invite code.</p></article>
+          <article><b>1</b><h3>Create a test workspace</h3><p>An authorised college representative creates the institution and can issue email-bound invite codes.</p></article>
           <article><b>2</b><h3>Invite the pilot team</h3><p>Selected staff join from their own devices and receive only the permissions required for testing.</p></article>
           <article><b>3</b><h3>Measure the workflow</h3><p>The pilot records completion time, errors, support needs and the decision to proceed, revise or stop.</p></article>
         </div>
@@ -130,7 +128,7 @@ export default async function Home() {
       <footer>
         <div className="brand"><span className="brand-mark">EB</span><span>EduBonke</span></div>
         <p>Every college. Every learner. One platform.</p>
-        <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v0.2</p>
+        <p><Link href="/privacy">Prototype privacy notice</Link> · Working name · v1.0</p>
       </footer>
     </main>
   );

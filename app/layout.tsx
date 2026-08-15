@@ -1,21 +1,22 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+import PwaRegister from "./pwa-register";
+import { publicPath } from "../lib/path";
 
 export const metadata: Metadata = {
-  title: "EduBonke College Portal Prototype",
-  description: "A secure shared administration prototype for South African colleges.",
-  other: { "codex-preview": "development" },
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  title: "EduBonke College Management Platform",
+  description: "A multi-college administration and academic operations platform for South African private colleges.",
+  manifest: publicPath("/manifest.webmanifest"),
+  applicationName: "EduBonke",
+  icons: { icon: publicPath("/favicon.svg"), shortcut: publicPath("/favicon.svg") },
 };
+
+export const viewport: Viewport = { themeColor: "#087f75" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-ZA">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <body><PwaRegister />{children}</body>
     </html>
   );
 }

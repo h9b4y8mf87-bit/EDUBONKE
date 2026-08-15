@@ -1,71 +1,61 @@
-# EduBonke College Portal Prototype
+# EduBonke College Management Platform
 
-EduBonke is a controlled, full-stack prototype for testing shared college administration workflows with South African private colleges. The working name has not yet completed formal company-name, trade-mark, domain or representative cultural clearance.
+EduBonke is a multi-tenant administration and academic operations platform designed for South African private-college workflows. Version 1.0 is a working, synthetic-data prototype that can run at R0 using GitHub Pages and the Supabase Free plan.
 
-## What is implemented
+## Functional areas
 
-- Sign-in-gated portal using the hosting platform's authenticated identity
-- Separate institution workspaces with administrator, lecturer and viewer roles
-- Admissions queue, programme catalogue, NQF/SAQA reference fields and enrolments
-- Shared learner register with controlled CSV import, attendance and timetables
-- Formative, summative, practical, POE and workplace assessment workflows
-- Competence outcomes, moderation status and software-generated progress reports
-- Protected POE/workplace evidence uploads with review status and metadata
-- Announcements and staff role administration
-- POPIA request register for access, correction, deletion and objection requests
-- Institution-scoped queries and server-side permission checks
-- Audit history for important write actions
-- Managed relational storage and separate object-storage backup snapshots
-- Portable JSON and progress CSV exports for migration and operational testing
-- Database health endpoint and protective response headers
-- Responsive public site and portal for desktop, tablet and mobile
+- Multi-college workspaces with row-level tenant isolation
+- College onboarding, memberships and single-use invite codes
+- College Administrator, Academic Manager, Lecturer, Assessor, Moderator, Finance Officer, Student and Workplace Supervisor roles
+- Campuses, academic periods, programmes, modules and classes
+- Applications, admissions decisions, student records and enrolments
+- Controlled student CSV imports, student-account links and workplace placements
+- Shared timetables, attendance sessions and attendance records
+- Formative, summative, practical, POE and workplace assessments
+- Competence outcomes, moderation status and private evidence uploads
+- Invoices, payments, balances and bursary/NSFAS administrative tracking
+- Audience-filtered announcements and direct in-app notifications
+- CSV operational reports and printable academic progress records
+- Support tickets with comments, POPIA requests, consent records and data incidents
+- Platform subscriptions, tenant register and audit history
+- Responsive installable PWA shell for desktop, tablet and mobile
 
-## Prototype restriction
+## R0 architecture
 
-Use synthetic information only. Do not enter real learner names, identity numbers, contact details, results, disability information or other personal information. External pilot access should not begin until the responsible party, Information Officer, operator agreement, retention schedule, incident procedure and access list are approved.
+- **Frontend:** Next.js static export hosted by GitHub Pages
+- **Authentication:** Supabase Auth
+- **Database:** Supabase PostgreSQL
+- **Tenant security:** PostgreSQL row-level security policies
+- **Private documents:** Supabase Storage with signed downloads
+- **Automation:** GitHub Actions build, test and Pages deployment
 
-## Hosting reality
+No ChatGPT hosting, D1, R2, Vercel or paid service is required for prototype testing.
 
-GitHub can store this source code and GitHub Pages can publish the public static introduction. GitHub Pages cannot run the protected API routes, authentication, database or backup service. The working portal therefore requires a separate hosted application/backend.
+## Set up the working prototype
 
-The current test deployment uses:
-
-- dispatch-owned sign-in for authentication;
-- a managed D1 database for structured records;
-- R2 object storage for on-demand backup snapshots; and
-- server-side membership checks for institution and role access.
-
-For a later GitHub Pages arrangement, keep the public landing page on Pages and point the portal link to the secure hosted application. Do not expose database credentials or service-role keys in the GitHub Pages bundle.
-
-See [`docs/production-readiness.md`](docs/production-readiness.md) for the production migration gates.
+Follow [`docs/ZERO_COST_SETUP.md`](docs/ZERO_COST_SETUP.md). The one-time setup creates a Supabase project, runs the supplied migration, adds two GitHub secrets and enables GitHub Pages.
 
 ## Local development
 
-Requirements: Node.js 22.13 or newer, GNU `timeout`, `flock` and `curl`.
-
 ```bash
-npm run install:ci
-npm run db:generate
+cp .env.example .env.local
+npm install
 npm run dev
 ```
 
-Useful checks:
+Open `http://localhost:3000`. Use Node.js 20.9 or newer.
+
+Validation:
 
 ```bash
-npm run lint
 npm test
 ```
 
-Database migrations are stored under `drizzle/`. Logical platform bindings are declared in `.openai/hosting.json` as `DB` and `BUCKET`.
+## Data restrictions
 
-## Main routes
+Use synthetic information only. Do not store real learner identities, contact details, academic results, disability data, financial information or POE evidence on the free prototype. Free-tier hosting is not a substitute for production backups, restore testing, monitoring, incident response, MFA enforcement, a POPIA operator agreement or formal data-residency review.
 
-- `/` — public product introduction
-- `/portal` — protected shared workspace
-- `/privacy` — prototype privacy notice
-- `/api/health` — non-sensitive database reachability check
-- `/api/export` — administrator-only portable export
-- `/api/backups` — administrator-only recovery snapshots
-- `/api/reports?type=progress` — software-generated progress CSV
-- `/api/import` — controlled learner CSV template and import
-- `/api/evidence` — protected evidence upload, review and retrieval
+EduBonke does not claim to issue accredited certificates, validate programme accreditation, submit returns to DHET/QCTO/Umalusi, provide an official NSFAS integration, perform statutory accounting or replace payroll/ERP systems.
+
+See [`docs/PRODUCTION_READINESS.md`](docs/PRODUCTION_READINESS.md) before any live-college pilot.
+The exact implemented and excluded scope is listed in [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md).
