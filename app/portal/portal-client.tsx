@@ -6,19 +6,11 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured } from "../../lib/supabase";
 import { downloadCsv, formatDate, human, money, navigation, type InstitutionRole, type Membership, type WorkspaceData } from "../../lib/platform";
 import { createDemoWorkspace, demoMemberships, demoUser } from "../../lib/demo-data";
+import { loadInstitutionMembers, loadPlatformInstitutions, loadWorkspaceTables } from "../../lib/workspace-loader";
 import BrandLogo, { BrandMark } from "../brand";
 
 type Row = Record<string, unknown>;
 type Notice = { type: "success" | "error"; text: string } | null;
-
-const workspaceTables = [
-  "campuses", "academic_periods", "programmes", "modules", "programme_modules", "classes",
-  "applications", "students", "student_status_history", "student_documents", "enrolments", "workplace_placements",
-  "timetable_entries", "attendance_sessions", "attendance_records", "assessments", "assessment_results",
-  "evidence_documents", "moderation_records", "invoices", "invoice_items", "payments", "funding_records",
-  "announcements", "notifications", "support_tickets", "support_ticket_comments", "privacy_requests",
-  "consent_records", "data_incidents", "institution_invites", "subscriptions", "audit_logs",
-] as const;
 
 const academicWriters = new Set<InstitutionRole>(["college_admin", "academic_manager", "lecturer", "assessor", "moderator"]);
 const academicManagers = new Set<InstitutionRole>(["college_admin", "academic_manager"]);
@@ -53,25 +45,21 @@ export default function PortalClient({ demoMode = false }: { demoMode?: boolean 
   const loadWorkspace = useCallback(async (active: Membership, superAdmin: boolean) => {
     setLoading(true);
     try {
-      const supabase = getSupabase();
-      const results = await Promise.all(workspaceTables.map(async (table) => {
-        const { data: rows, error } = await supabase.from(table).select("*").eq("institution_id", active.institution_id).limit(500);
-        if (error) throw new Error(`${human(table)}: ${error.message}`);
-        return [table, rows ?? []] as const;
-      }));
-      const memberResult = await supabase.from("institution_memberships").select("id,institution_id,profile_id,role,status,created_at,profiles(id,full_name,email)").eq("institution_id", active.institution_id).limit(200);
-      if (memberResult.error) throw memberResult.error;
+      const [results, members, platformInstitutions] = await Promise.all([
+        loadWorkspaceTables(active.institution_id),
+        loadInstitutionMembers(active.institution_id),
+        superAdmin ? loadPlatformInstitutions() : Promise.resolve(null),
+      ]);
       const next: WorkspaceData = Object.fromEntries(results);
-      next.members = (memberResult.data ?? []) as unknown as Row[];
-      if (superAdmin) {
-        const platformResult = await supabase.from("institutions").select("*").order("created_at", { ascending: false }).limit(200);
-        if (!platformResult.error) next.platform_institutions = (platformResult.data ?? []) as unknown as Row[];
-      }
+      next.members = members as Row[];
+      if (platformInstitutions) next.platform_institutions = platformInstitutions as Row[];
       setData(next);
     } finally {
       setLoading(false);
     }
   }, []);
+
+
 
   useEffect(() => {
     if (demoMode || !isSupabaseConfigured) return;
@@ -220,8 +208,152 @@ function OverviewPanel({ data, role, demoMode }: PanelProps) {
 }
 
 function AdmissionsPanel(props: PanelProps) {
-  const programmes = getRows(props.data, "programmes"); const applications = getRows(props.data, "applications"); const canWrite = academicManagers.has(props.role);
-  return <div className="portal-content two-column">{canWrite && <FormCard title="Capture an application" intro="Record applicant details and the requested programme."><form onSubmit={(event) => void formInsert(event, props.actions, "applications", { status: "received" }, "Application captured.")}><Pair><Field label="First name" name="first_name" /><Field label="Last name" name="last_name" /></Pair><Pair><Field label="Email" name="email" type="email" /><Field label="Mobile number" name="phone" /></Pair><SelectField label="Programme" name="programme_id" options={programmes} optionLabel={(row) => `${text(row.code)} · ${text(row.title)}`} /><Pair><Field label="Intake date" name="intake_date" type="date" /><Field label="Application reference" name="reference_number" placeholder="APP-2026-001" /></Pair><TextArea label="Notes" name="notes" /><Submit busy={props.busy}>Save application</Submit></form></FormCard>}<Card title="Application pipeline" eyebrow="ADMISSIONS REGISTER" wide={!canWrite}><div className="data-table"><div className="table-head columns-4"><span>Applicant</span><span>Programme</span><span>Intake</span><span>Status</span></div>{applications.map((row) => <div className="table-row columns-4" key={text(row.id)}><span><b>{text(row.first_name)} {text(row.last_name)}</b><small>{text(row.reference_number)}</small></span><span>{lookup(programmes, row.programme_id)}</span><span>{formatDate(row.intake_date)}</span><span>{canWrite ? <select value={text(row.status)} onChange={(event) => void props.actions.update("applications", row.id, { status: event.target.value }, "Application status updated.")}><option value="received">Received</option><option value="reviewing">Reviewing</option><option value="accepted">Accepted</option><option value="declined">Declined</option><option value="waitlisted">Waitlisted</option></select> : <Status value={row.status} />}</span></div>)}</div>{!applications.length && <Empty text="No applications have been captured." />}</Card></div>;
+  const programmes = getRows(props.data, "programmes");
+  const applications = getRows(props.data, "applications");
+  const students = getRows(props.data, "students");
+  const periods = getRows(props.data, "academic_periods");
+  const classes = getRows(props.data, "classes");
+  const canWrite = academicManagers.has(props.role);
+  const convertedApplicationIds = new Set(
+    students.map((row) => text(row.source_application_id)).filter(Boolean),
+  );
+  const acceptedApplications = applications.filter(
+    (row) => row.status === "accepted" && !convertedApplicationIds.has(text(row.id)),
+  );
+
+  async function enrolAccepted(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = valuesFrom(form);
+    const applicationId = text(values.application_id);
+    const studentNumber = text(values.student_number).trim().toUpperCase();
+    const expectedEndDate = text(values.expected_end_date);
+    const application = applications.find((row) => text(row.id) === applicationId);
+
+    if (!application || application.status !== "accepted") {
+      window.alert("Select an accepted application that has not already been enrolled.");
+      return;
+    }
+
+    if (props.demoMode) {
+      const studentId = crypto.randomUUID();
+      await props.actions.insert(
+        "students",
+        {
+          id: studentId,
+          source_application_id: application.id,
+          student_number: studentNumber,
+          first_name: application.first_name,
+          last_name: application.last_name,
+          email: application.email,
+          phone: application.phone,
+          status: "active",
+        },
+        "Student created from accepted application.",
+      );
+      await props.actions.insert(
+        "enrolments",
+        {
+          student_id: studentId,
+          programme_id: application.programme_id,
+          academic_period_id: text(values.academic_period_id) || null,
+          class_id: text(values.class_id) || null,
+          start_date: application.intake_date,
+          expected_end_date: expectedEndDate,
+          status: "active",
+        },
+        "Accepted applicant enrolled.",
+      );
+      form.reset();
+      return;
+    }
+
+    await props.actions.custom(async () => {
+      const { error } = await getSupabase().rpc("enrol_accepted_application", {
+        p_application_id: applicationId,
+        p_student_number: studentNumber,
+        p_academic_period_id: text(values.academic_period_id) || null,
+        p_class_id: text(values.class_id) || null,
+        p_expected_end_date: expectedEndDate,
+      });
+      if (error) throw error;
+      form.reset();
+    }, "Accepted applicant converted to student and enrolled.");
+  }
+
+  return (
+    <div className="portal-content two-column">
+      {canWrite && (
+        <div>
+          <FormCard title="Capture an application" intro="Record applicant details and the requested programme.">
+            <form onSubmit={(event) => void formInsert(event, props.actions, "applications", { status: "received" }, "Application captured.")}>
+              <Pair><Field label="First name" name="first_name" /><Field label="Last name" name="last_name" /></Pair>
+              <Pair><Field label="Email" name="email" type="email" /><Field label="Mobile number" name="phone" /></Pair>
+              <SelectField label="Programme" name="programme_id" options={programmes} optionLabel={(row) => `${text(row.code)} · ${text(row.title)}`} />
+              <Pair><Field label="Intake date" name="intake_date" type="date" /><Field label="Application reference" name="reference_number" placeholder="APP-2026-001" /></Pair>
+              <TextArea label="Notes" name="notes" />
+              <Submit busy={props.busy}>Save application</Submit>
+            </form>
+          </FormCard>
+
+          <FormCard title="Enrol an accepted applicant" intro="Create the student and enrolment from the accepted application without retyping applicant details.">
+            <form onSubmit={(event) => void enrolAccepted(event)}>
+              <SelectField
+                label="Accepted application"
+                name="application_id"
+                options={acceptedApplications}
+                optionLabel={(row) => `${text(row.reference_number)} · ${text(row.first_name)} ${text(row.last_name)} · ${lookup(programmes, row.programme_id)}`}
+              />
+              <Field label="College-issued student number" name="student_number" />
+              <Pair>
+                <SelectField label="Academic period (optional)" name="academic_period_id" options={periods} optionLabel={(row) => text(row.name)} optional />
+                <SelectField label="Class (optional)" name="class_id" options={classes} optionLabel={(row) => text(row.name)} optional />
+              </Pair>
+              <Field label="Expected end date" name="expected_end_date" type="date" />
+              <Submit busy={props.busy}>Create student and enrolment</Submit>
+            </form>
+            {!acceptedApplications.length && <p className="scope-note">No accepted applications are waiting for enrolment.</p>}
+          </FormCard>
+        </div>
+      )}
+
+      <Card title="Application pipeline" eyebrow="ADMISSIONS REGISTER" wide={!canWrite}>
+        <div className="data-table">
+          <div className="table-head columns-4"><span>Applicant</span><span>Programme</span><span>Intake</span><span>Status</span></div>
+          {applications.map((row) => {
+            const converted = convertedApplicationIds.has(text(row.id));
+            return (
+              <div className="table-row columns-4" key={text(row.id)}>
+                <span><b>{text(row.first_name)} {text(row.last_name)}</b><small>{text(row.reference_number)}</small></span>
+                <span>{lookup(programmes, row.programme_id)}</span>
+                <span>{formatDate(row.intake_date)}</span>
+                <span>
+                  {canWrite ? (
+                    <>
+                      <select value={text(row.status)} onChange={(event) => void props.actions.update("applications", row.id, { status: event.target.value }, "Application status updated.")}>
+                        <option value="received">Received</option>
+                        <option value="reviewing">Reviewing</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="declined">Declined</option>
+                        <option value="waitlisted">Waitlisted</option>
+                      </select>
+                      {converted && <small>Student/enrolment created</small>}
+                    </>
+                  ) : (
+                    <>
+                      <Status value={row.status} />
+                      {converted && <small>Student/enrolment created</small>}
+                    </>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        {!applications.length && <Empty text="No applications have been captured." />}
+      </Card>
+    </div>
+  );
 }
 
 function StudentsPanel(props: PanelProps) {
@@ -268,7 +400,14 @@ function AssessmentsPanel(props: PanelProps) {
 }
 
 function EvidencePanel(props: PanelProps) {
-  const students = getRows(props.data, "students"); const assessments = getRows(props.data, "assessments"); const results = getRows(props.data, "assessment_results"); const evidence = getRows(props.data, "evidence_documents"); const moderation = getRows(props.data, "moderation_records"); const canWrite = academicWriters.has(props.role); const canModerate = props.role === "college_admin" || props.role === "moderator";
+  const students = getRows(props.data, "students");
+  const assessments = getRows(props.data, "assessments");
+  const results = getRows(props.data, "assessment_results");
+  const evidence = getRows(props.data, "evidence_documents");
+  const moderation = getRows(props.data, "moderation_records");
+  const canWrite = academicWriters.has(props.role);
+  const canModerate = props.role === "college_admin" || props.role === "moderator";
+
   async function upload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const formData = new FormData(form); const file = formData.get("file");
     if (!(file instanceof File) || !file.size) throw new Error("Choose a file to upload.");
@@ -286,7 +425,35 @@ function EvidencePanel(props: PanelProps) {
       form.reset();
     }, "Evidence uploaded securely.");
   }
-  async function download(row: Row) { if (props.demoMode) { downloadBlob("EDUBONKE-DEMO-EVIDENCE.txt", `EduBonke demonstration evidence placeholder\n\nTitle: ${text(row.title)}\nStudent: ${lookupStudent(students, row.student_id)}\nFilename: ${text(row.file_name)}\n\nNo real learner file is included in Demo Mode.`, "text/plain"); return; } const { data, error } = await getSupabase().storage.from("college-documents").createSignedUrl(text(row.storage_path), 60); if (error) throw error; window.open(data.signedUrl, "_blank", "noopener,noreferrer"); }
+
+  async function download(row: Row) {
+    if (props.demoMode) {
+      downloadBlob("EDUBONKE-DEMO-EVIDENCE.txt", `EduBonke demonstration evidence placeholder\n\nTitle: ${text(row.title)}\nStudent: ${lookupStudent(students, row.student_id)}\nFilename: ${text(row.file_name)}\n\nNo real learner file is included in Demo Mode.`, "text/plain");
+      return;
+    }
+    const { data, error } = await getSupabase().storage.from("college-documents").createSignedUrl(text(row.storage_path), 60);
+    if (error) throw error;
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+  async function reviewEvidence(row: Row, status: "verified" | "returned" | "rejected") {
+    const messages = {
+      verified: "Evidence verified.",
+      returned: "Evidence returned.",
+      rejected: "Evidence rejected.",
+    } as const;
+    await props.actions.update(
+      "evidence_documents",
+      row.id,
+      {
+        status,
+        reviewed_by: props.user.id,
+        reviewed_at: new Date().toISOString(),
+      },
+      messages[status],
+    );
+  }
+
   async function moderate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const values = valuesFrom(form); const resultId = text(values.assessment_result_id); const decision = text(values.decision);
     if (props.demoMode) {
@@ -302,7 +469,65 @@ function EvidencePanel(props: PanelProps) {
       if (updateError) throw updateError; form.reset();
     }, "Moderation decision recorded.");
   }
-  return <div className="portal-content">{(canWrite || canModerate) && <div className="feature-grid two">{canWrite && <FormCard title="Upload POE or workplace evidence" intro="Private files are stored in Supabase Storage and governed by institution membership."><form onSubmit={(event) => void upload(event)}><SelectField label="Student" name="student_id" options={students} optionLabel={(row) => `${text(row.student_number)} · ${text(row.first_name)} ${text(row.last_name)}`} /><SelectField label="Assessment (optional)" name="assessment_id" options={assessments} optionLabel={(row) => text(row.title)} optional /><SelectField label="Evidence category" name="evidence_type" rawOptions={[["poe", "Portfolio of Evidence"], ["workplace", "Workplace evidence"], ["logbook", "Logbook"], ["assessment_support", "Assessment support"]]} /><Field label="Evidence title" name="title" /><label>File<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.pptx,.txt" required /></label><Submit busy={props.busy}>Upload evidence</Submit></form></FormCard>}{canModerate && <FormCard title="Record moderation" intro="Create a separate accountable moderation record for an assessment result."><form onSubmit={(event) => void moderate(event)}><SelectField label="Assessment result" name="assessment_result_id" options={results} optionLabel={(row) => `${lookupStudent(students, row.student_id)} · ${lookup(assessments, row.assessment_id)}`} /><SelectField label="Decision" name="decision" rawOptions={[["upheld", "Outcome upheld"], ["changed", "Outcome changed"], ["returned", "Returned to assessor"]]} /><TextArea label="Comments" name="comments" /><Submit busy={props.busy}>Save moderation</Submit></form></FormCard>}</div>}<div className="dashboard-grid"><Card title="Evidence register" eyebrow="POE & WORKPLACE"><RecordList rows={evidence} empty="No evidence files have been uploaded." render={(row) => <><div className="record-between"><b>{text(row.title)}</b><Status value={row.status} /></div><small>{lookupStudent(students, row.student_id)} · {text(row.file_name)}</small><div className="inline-actions"><button onClick={() => void download(row)}>Download</button>{academicManagers.has(props.role) && <><button onClick={() => void props.actions.update("evidence_documents", row.id, { status: "verified", reviewed_by: props.user.id, reviewed_at: new Date().toISOString() }, "Evidence verified.")}>Verify</button><button onClick={() => void props.actions.update("evidence_documents", row.id, { status: "returned", reviewed_by: props.user.id, reviewed_at: new Date().toISOString() }, "Evidence returned.")}>Return</button></>}</div></>} /></Card><Card title="Moderation history" eyebrow="QUALITY ASSURANCE"><RecordList rows={moderation} empty="No moderation decisions have been recorded." render={(row) => <><div className="record-between"><b>{lookup(results, row.assessment_result_id, "outcome")}</b><Status value={row.decision} /></div><small>{formatDate(row.moderated_at ?? row.created_at)} · {text(row.comments) || "No comments"}</small></>} /></Card></div></div>;
+
+  return (
+    <div className="portal-content">
+      {(canWrite || canModerate) && (
+        <div className="feature-grid two">
+          {canWrite && (
+            <FormCard title="Upload POE or workplace evidence" intro="Private files are stored in Supabase Storage and governed by institution membership.">
+              <form onSubmit={(event) => void upload(event)}>
+                <SelectField label="Student" name="student_id" options={students} optionLabel={(row) => `${text(row.student_number)} · ${text(row.first_name)} ${text(row.last_name)}`} />
+                <SelectField label="Assessment (optional)" name="assessment_id" options={assessments} optionLabel={(row) => text(row.title)} optional />
+                <SelectField label="Evidence category" name="evidence_type" rawOptions={[["poe", "Portfolio of Evidence"], ["workplace", "Workplace evidence"], ["logbook", "Logbook"], ["assessment_support", "Assessment support"]]} />
+                <Field label="Evidence title" name="title" />
+                <label>File<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.pptx,.txt" required /></label>
+                <Submit busy={props.busy}>Upload evidence</Submit>
+              </form>
+            </FormCard>
+          )}
+          {canModerate && (
+            <FormCard title="Record moderation" intro="Create a separate accountable moderation record for an assessment result.">
+              <form onSubmit={(event) => void moderate(event)}>
+                <SelectField label="Assessment result" name="assessment_result_id" options={results} optionLabel={(row) => `${lookupStudent(students, row.student_id)} · ${lookup(assessments, row.assessment_id)}`} />
+                <SelectField label="Decision" name="decision" rawOptions={[["upheld", "Outcome upheld"], ["changed", "Outcome changed"], ["returned", "Returned to assessor"]]} />
+                <TextArea label="Comments" name="comments" />
+                <Submit busy={props.busy}>Save moderation</Submit>
+              </form>
+            </FormCard>
+          )}
+        </div>
+      )}
+
+      <div className="dashboard-grid">
+        <Card title="Evidence register" eyebrow="POE & WORKPLACE">
+          <RecordList
+            rows={evidence}
+            empty="No evidence files have been uploaded."
+            render={(row) => (
+              <>
+                <div className="record-between"><b>{text(row.title)}</b><Status value={row.status} /></div>
+                <small>{lookupStudent(students, row.student_id)} · {text(row.file_name)}</small>
+                <div className="inline-actions">
+                  <button onClick={() => void download(row)}>Download</button>
+                  {academicManagers.has(props.role) && (
+                    <>
+                      <button onClick={() => void reviewEvidence(row, "verified")}>Verify</button>
+                      <button onClick={() => void reviewEvidence(row, "returned")}>Return</button>
+                      <button onClick={() => void reviewEvidence(row, "rejected")}>Reject</button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          />
+        </Card>
+        <Card title="Moderation history" eyebrow="QUALITY ASSURANCE">
+          <RecordList rows={moderation} empty="No moderation decisions have been recorded." render={(row) => <><div className="record-between"><b>{lookup(results, row.assessment_result_id, "outcome")}</b><Status value={row.decision} /></div><small>{formatDate(row.moderated_at ?? row.created_at)} · {text(row.comments) || "No comments"}</small></>} />
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 function FinancePanel(props: PanelProps) {
